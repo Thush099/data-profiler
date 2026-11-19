@@ -227,7 +227,7 @@ class ContractViolation:
     failed_count: int
     failure_rate: float
     message: str
-    sample_indices: List[int] = field(default_factory=list)
+    sample_indices: List[Any] = field(default_factory=list)
     details: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -245,7 +245,8 @@ class ContractReport:
     passed_rules: int
     failed_rules: int
     violations: List[ContractViolation] = field(default_factory=list)
-    violating_row_indices: List[int] = field(default_factory=list)
+    violating_row_indices: List[Any] = field(default_factory=list)
+    violating_row_positions: List[int] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize contract validation report to a dictionary."""
@@ -257,6 +258,7 @@ class ContractReport:
             "failed_rules": self.failed_rules,
             "violations": [v.to_dict() for v in self.violations],
             "violating_row_indices": list(self.violating_row_indices),
+            "violating_row_positions": list(self.violating_row_positions),
         }
 
 

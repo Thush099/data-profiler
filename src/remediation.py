@@ -41,19 +41,25 @@ class RemediationPlanner:
             )
             priority += 1
 
-        if contract_report is not None and contract_report.violating_row_indices:
-            violating_indices = list(contract_report.violating_row_indices)
+        if contract_report is not None and (
+            contract_report.violating_row_positions or contract_report.violating_row_indices
+        ):
+            row_positions = list(contract_report.violating_row_positions)
+            params = {"row_positions": row_positions} if row_positions else {
+                "row_indices": list(contract_report.violating_row_indices)
+            }
+            violating_count = len(row_positions) or len(contract_report.violating_row_indices)
             actions.append(
                 RemediationAction(
                     priority=priority,
                     action="quarantine_contract_violations",
                     target="__dataset__",
                     reason=(
-                        f"Quarantine {len(violating_indices)} row(s) violating "
+                        f"Quarantine {violating_count} row(s) violating "
                         f"contract '{contract_report.contract_name}'."
                     ),
-                    affected_rows=len(violating_indices),
-                    params={"row_indices": violating_indices},
+                    affected_rows=violating_count,
+                    params=params,
                 )
             )
             priority += 1
@@ -154,24 +160,46 @@ def apply_remediation(df: pd.DataFrame, plan: RemediationPlan) -> RemediationRes
     rows_before = int(len(df))
     working = df.copy()
     quarantined_df = df.iloc[0:0].copy()
+    working_positions = list(range(rows_before))
     applied_actions: List[str] = []
     columns_dropped: List[str] = []
 
     for act in sorted(plan.actions, key=lambda item: item.priority):
         if act.action == "drop_duplicates":
             before = len(working)
-            working = working.drop_duplicates(keep="first")
+            keep_mask = ~working.duplicated(keep="first").to_numpy()
+            working = working.iloc[keep_mask]
+            working_positions = [
+                position for position, keep in zip(working_positions, keep_mask) if keep
+            ]
             if len(working) < before:
                 applied_actions.append(f"drop_duplicates ({before - len(working)} rows)")
 
         elif act.action == "quarantine_contract_violations":
-            raw_indices = act.params.get("row_indices", [])
-            valid_idx = [idx for idx in raw_indices if idx in working.index]
-            if valid_idx:
-                quarantined_df = working.loc[valid_idx].copy()
-                working = working.drop(index=valid_idx)
+            if "row_positions" in act.params:
+                raw_positions = set(act.params["row_positions"])
+                quarantine_mask = [
+                    position in raw_positions for position in working_positions
+                ]
+                quarantined_df = working.iloc[quarantine_mask].copy()
+                keep_mask = [not quarantine for quarantine in quarantine_mask]
+                working = working.iloc[keep_mask]
+                working_positions = [
+                    position for position, keep in zip(working_positions, keep_mask) if keep
+                ]
+                quarantined_count = len(quarantined_df)
+            else:
+                raw_indices = act.params.get("row_indices", [])
+                valid_idx = [idx for idx in raw_indices if idx in working.index]
+                if valid_idx:
+                    quarantined_df = working.loc[valid_idx].copy()
+                    working = working.drop(index=valid_idx)
+                    quarantined_count = len(quarantined_df)
+                else:
+                    quarantined_count = 0
+            if quarantined_count:
                 applied_actions.append(
-                    f"quarantine_contract_violations ({len(valid_idx)} rows)"
+                    f"quarantine_contract_violations ({quarantined_count} rows)"
                 )
 
         elif act.action == "drop_constant_columns":

@@ -129,6 +129,13 @@ def test_empty_dataframe_and_all_null_column_edge_cases():
     )
 
 
+def test_duplicate_column_labels_are_rejected_with_clear_error():
+    df = pd.DataFrame([[1, 2]], columns=["value", "value"])
+
+    with pytest.raises(ValueError, match="duplicate column labels"):
+        DataProfiler().profile(df)
+
+
 def test_invalid_target_raises_value_error():
     df = pd.DataFrame({"a": [1, 2, 3]})
     with pytest.raises(ValueError, match="Target column"):

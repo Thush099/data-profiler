@@ -81,6 +81,30 @@ def test_remediation_quarantines_contract_violations():
     assert ContractValidator().validate(result.cleaned_df, contract).passed is True
 
 
+def test_remediation_quarantines_only_violating_row_with_duplicate_index_labels():
+    df = pd.DataFrame(
+        {
+            "customer_id": ["C-1", "C-1", "C-2", "C-2"],
+            "age": [25, 25, 35, 45],
+        },
+        index=[7, 7, 7, 7],
+    )
+    contract = DataContract(
+        name="unique_customer_ids",
+        rules=[ColumnRule(column="customer_id", unique=True)],
+    )
+
+    report = ContractValidator().validate(df, contract)
+    result = apply_remediation(
+        df,
+        RemediationPlanner().plan(DataProfiler().profile(df), contract_report=report),
+    )
+
+    assert report.violating_row_positions == [1, 3]
+    assert result.cleaned_df["age"].tolist() == [25, 35]
+    assert result.quarantined_df["age"].tolist() == [45]
+
+
 def test_remediation_handles_empty_and_all_null_columns():
     empty_df = pd.DataFrame({"a": pd.Series(dtype="float64"), "b": pd.Series(dtype="object")})
     empty_profile = DataProfiler().profile(empty_df)

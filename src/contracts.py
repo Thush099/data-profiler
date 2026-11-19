@@ -22,8 +22,12 @@ class ContractValidator:
         if not isinstance(df, pd.DataFrame):
             raise TypeError(f"Expected pandas.DataFrame, got {type(df).__name__}.")
 
+        if not df.columns.is_unique:
+            duplicates = df.columns[df.columns.duplicated()].unique().tolist()
+            raise ValueError(f"DataFrame contains duplicate column labels: {duplicates!r}.")
+
         violations: List[ContractViolation] = []
-        violating_rows: Set[int] = set()
+        violating_positions: Set[int] = set()
         total_rules_checked = 0
         row_count = len(df)
 
@@ -68,7 +72,9 @@ class ContractValidator:
                 failed_count = int(mask.sum())
                 if failed_count > 0:
                     idx = df.index[mask].tolist()
-                    violating_rows.update(idx)
+                    violating_positions.update(
+                        i for i, failed in enumerate(mask.to_numpy()) if failed
+                    )
                     violations.append(
                         ContractViolation(
                             column=col_name,
@@ -76,7 +82,7 @@ class ContractValidator:
                             failed_count=failed_count,
                             failure_rate=failed_count / row_count,
                             message=f"Column '{col_name}' has {failed_count} null value(s) violating not_null.",
-                            sample_indices=[int(i) for i in idx[:10]],
+                            sample_indices=idx[:10],
                         )
                     )
 
@@ -84,7 +90,12 @@ class ContractValidator:
                 total_rules_checked += 1
                 null_rate = float(series.isna().mean()) if row_count > 0 else 0.0
                 if null_rate > rule.max_null_rate:
-                    failed_count = int(series.isna().sum())
+                    null_mask = series.isna()
+                    failed_count = int(null_mask.sum())
+                    idx = df.index[null_mask].tolist()
+                    violating_positions.update(
+                        i for i, failed in enumerate(null_mask.to_numpy()) if failed
+                    )
                     violations.append(
                         ContractViolation(
                             column=col_name,
@@ -95,6 +106,7 @@ class ContractValidator:
                                 f"Column '{col_name}' null rate {null_rate:.1%} exceeds "
                                 f"max_null_rate {rule.max_null_rate:.1%}."
                             ),
+                            sample_indices=idx[:10],
                             details={"null_rate": round(null_rate, 4), "max_null_rate": rule.max_null_rate},
                         )
                     )
@@ -108,7 +120,9 @@ class ContractValidator:
                 failed_count = int(bad_mask.sum())
                 if failed_count > 0:
                     idx = df.index[bad_mask].tolist()
-                    violating_rows.update(idx)
+                    violating_positions.update(
+                        i for i, failed in enumerate(bad_mask.to_numpy()) if failed
+                    )
                     violations.append(
                         ContractViolation(
                             column=col_name,
@@ -119,7 +133,7 @@ class ContractValidator:
                                 f"Column '{col_name}' has {failed_count} value(s) below "
                                 f"min_value={rule.min_value}."
                             ),
-                            sample_indices=[int(i) for i in idx[:10]],
+                            sample_indices=idx[:10],
                         )
                     )
 
@@ -132,7 +146,9 @@ class ContractValidator:
                 failed_count = int(bad_mask.sum())
                 if failed_count > 0:
                     idx = df.index[bad_mask].tolist()
-                    violating_rows.update(idx)
+                    violating_positions.update(
+                        i for i, failed in enumerate(bad_mask.to_numpy()) if failed
+                    )
                     violations.append(
                         ContractViolation(
                             column=col_name,
@@ -143,7 +159,7 @@ class ContractValidator:
                                 f"Column '{col_name}' has {failed_count} value(s) above "
                                 f"max_value={rule.max_value}."
                             ),
-                            sample_indices=[int(i) for i in idx[:10]],
+                            sample_indices=idx[:10],
                         )
                     )
 
@@ -155,7 +171,9 @@ class ContractValidator:
                 failed_count = int(bad_mask.sum())
                 if failed_count > 0:
                     idx = df.index[bad_mask].tolist()
-                    violating_rows.update(idx)
+                    violating_positions.update(
+                        i for i, failed in enumerate(bad_mask.to_numpy()) if failed
+                    )
                     unexpected = sorted({str(v) for v in series[bad_mask].unique()})
                     violations.append(
                         ContractViolation(
@@ -167,7 +185,7 @@ class ContractValidator:
                                 f"Column '{col_name}' has {failed_count} disallowed value(s): "
                                 f"{', '.join(unexpected[:5])}."
                             ),
-                            sample_indices=[int(i) for i in idx[:10]],
+                            sample_indices=idx[:10],
                             details={"unexpected_values": unexpected[:10]},
                         )
                     )
@@ -180,7 +198,9 @@ class ContractValidator:
                 failed_count = int(dup_mask.sum())
                 if failed_count > 0:
                     idx = df.index[dup_mask].tolist()
-                    violating_rows.update(idx)
+                    violating_positions.update(
+                        i for i, failed in enumerate(dup_mask.to_numpy()) if failed
+                    )
                     violations.append(
                         ContractViolation(
                             column=col_name,
@@ -188,7 +208,7 @@ class ContractValidator:
                             failed_count=failed_count,
                             failure_rate=failed_count / row_count,
                             message=f"Column '{col_name}' has {failed_count} duplicate non-null value(s).",
-                            sample_indices=[int(i) for i in idx[:10]],
+                            sample_indices=idx[:10],
                         )
                     )
 
@@ -201,7 +221,10 @@ class ContractValidator:
             passed_rules=passed_rules,
             failed_rules=failed_rules,
             violations=violations,
-            violating_row_indices=sorted(int(i) for i in violating_rows),
+            violating_row_indices=list(
+                dict.fromkeys(df.index[position] for position in sorted(violating_positions))
+            ),
+            violating_row_positions=sorted(violating_positions),
         )
 
 

@@ -7,6 +7,67 @@ from src.contracts import ContractValidator, infer_contract
 from src.models import ColumnRule, DataContract
 
 
+def test_max_null_rate_reports_row_positions_with_duplicate_index_labels():
+    df = pd.DataFrame(
+        {"note": [None, "ok", None]},
+        index=[7, 7, 7],
+    )
+    contract = DataContract(
+        name="note_null_limit",
+        rules=[ColumnRule(column="note", max_null_rate=0.5)],
+    )
+
+    report = ContractValidator().validate(df, contract)
+
+    assert report.violating_row_indices == [7]
+    assert report.violating_row_positions == [0, 2]
+    assert report.violations[0].sample_indices == [7, 7]
+
+
+def test_contract_validation_preserves_non_integer_index_labels():
+    df = pd.DataFrame(
+        {"age": [None, 42]},
+        index=["customer-a", "customer-b"],
+    )
+    contract = DataContract(
+        rules=[ColumnRule(column="age", not_null=True)],
+    )
+
+    report = ContractValidator().validate(df, contract)
+
+    assert report.violating_row_indices == ["customer-a"]
+    assert report.violating_row_positions == [0]
+    assert report.violations[0].sample_indices == ["customer-a"]
+    assert report.to_dict()["violating_row_indices"] == ["customer-a"]
+
+
+@pytest.mark.parametrize(
+    ("values", "rule", "expected_positions"),
+    [
+        ([1, 5, 10], ColumnRule(column="value", min_value=5), [0]),
+        ([1, 5, 10], ColumnRule(column="value", max_value=5), [2]),
+        (["bad", "ok", "bad"], ColumnRule(column="value", allowed_values=["ok"]), [0, 2]),
+    ],
+)
+def test_contract_rules_report_positions_with_duplicate_index_labels(
+    values, rule, expected_positions
+):
+    df = pd.DataFrame({"value": values}, index=[7, 7, 7])
+
+    report = ContractValidator().validate(df, DataContract(rules=[rule]))
+
+    assert report.violating_row_positions == expected_positions
+    assert report.violating_row_indices == [7]
+
+
+def test_contract_validation_rejects_duplicate_column_labels():
+    df = pd.DataFrame([[1, 2]], columns=["age", "age"])
+    contract = DataContract(rules=[ColumnRule(column="age", min_value=0)])
+
+    with pytest.raises(ValueError, match="duplicate column labels"):
+        ContractValidator().validate(df, contract)
+
+
 def test_contract_validation_passes_on_clean_data():
     df = pd.DataFrame(
         {
