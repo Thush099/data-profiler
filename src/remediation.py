@@ -29,18 +29,6 @@ class RemediationPlanner:
         actions: List[RemediationAction] = []
         priority = 1
 
-        if profile.duplicate_row_count > 0:
-            actions.append(
-                RemediationAction(
-                    priority=priority,
-                    action="drop_duplicates",
-                    target="__dataset__",
-                    reason=f"Remove {profile.duplicate_row_count} exact duplicate row(s).",
-                    affected_rows=profile.duplicate_row_count,
-                )
-            )
-            priority += 1
-
         if contract_report is not None and (
             contract_report.violating_row_positions or contract_report.violating_row_indices
         ):
@@ -60,6 +48,18 @@ class RemediationPlanner:
                     ),
                     affected_rows=violating_count,
                     params=params,
+                )
+            )
+            priority += 1
+
+        if profile.duplicate_row_count > 0:
+            actions.append(
+                RemediationAction(
+                    priority=priority,
+                    action="drop_duplicates",
+                    target="__dataset__",
+                    reason=f"Remove {profile.duplicate_row_count} exact duplicate row(s).",
+                    affected_rows=profile.duplicate_row_count,
                 )
             )
             priority += 1

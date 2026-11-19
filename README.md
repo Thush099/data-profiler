@@ -134,6 +134,8 @@ plan = RemediationPlanner().plan(profile, contract_report=report)
 result = apply_remediation(df, plan)
 ```
 
+Contract-violating rows are quarantined before duplicate removal so every violating source row remains available for audit, including rows that are also exact duplicates.
+
 ## Running Tests
 
 ```bash
