@@ -59,6 +59,25 @@ python main.py \
   --clean-output outputs/cleaned.csv
 ```
 
+### Gating a pipeline with `--fail-on`
+
+By default the CLI always exits `0`, so a monitoring job cannot tell a clean run from a
+dirty one. `--fail-on` turns findings into a non-zero exit code so the tool can gate a
+CI or scheduled pipeline:
+
+| Value | Exits `1` when |
+|---|---|
+| `none` (default) | Never — preserves the historical behavior. |
+| `contract` | A loaded contract's validation fails. |
+| `high` | The contract fails, or profiling raises a `high`-severity warning. |
+| `any` | The contract fails, or any profiling warning is raised. |
+
+```bash
+python main.py --input-data data/sample_dirty.csv --fail-on high
+```
+
+An unknown level is rejected by argparse rather than silently disabling the gate.
+
 ### Example CLI Output (`python main.py`)
 
 ```text
