@@ -215,7 +215,15 @@ class DataContract:
     @classmethod
     def from_json_file(cls, file_path: Union[str, Path]) -> "DataContract":
         """Load a DataContract from a JSON file."""
-        return cls.from_json(Path(file_path).read_text(encoding="utf-8"))
+        path = Path(file_path)
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Contract file not found: {path}") from None
+        try:
+            return cls.from_json(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Contract file is not valid JSON: {path} ({exc})") from exc
 
 
 @dataclass

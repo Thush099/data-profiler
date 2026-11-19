@@ -177,3 +177,19 @@ def test_infer_contract_empty_and_rule_validation_errors():
         ColumnRule(column="x", min_value=10, max_value=5)
     with pytest.raises(ValueError, match="max_null_rate"):
         ColumnRule(column="x", max_null_rate=1.5)
+
+
+class TestContractFileLoading:
+    def test_missing_contract_file_reports_path(self, tmp_path):
+        from src.models import DataContract
+
+        with pytest.raises(FileNotFoundError, match="Contract file not found"):
+            DataContract.from_json_file(tmp_path / "missing.json")
+
+    def test_malformed_contract_json_reports_path(self, tmp_path):
+        from src.models import DataContract
+
+        bad = tmp_path / "bad.json"
+        bad.write_text("{ not json", encoding="utf-8")
+        with pytest.raises(ValueError, match="Contract file is not valid JSON"):
+            DataContract.from_json_file(bad)
