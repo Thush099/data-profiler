@@ -37,3 +37,5 @@ class Config:
             raise ValueError("imbalance_ratio_threshold must be in (0, 1].")
         if not 0.0 < self.leakage_correlation_threshold <= 1.0:
             raise ValueError("leakage_correlation_threshold must be in (0, 1].")
+        if not 0.0 < self.leakage_purity_threshold <= 1.0:
+            raise ValueError("leakage_purity_threshold must be in (0, 1].")

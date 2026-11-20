@@ -140,3 +140,15 @@ def test_invalid_target_raises_value_error():
     df = pd.DataFrame({"a": [1, 2, 3]})
     with pytest.raises(ValueError, match="Target column"):
         DataProfiler().profile(df, target="missing_col")
+
+
+@pytest.mark.parametrize("value", [0.0, -0.1, 1.5, float("nan"), float("inf")])
+def test_config_rejects_invalid_leakage_purity_threshold(value: float) -> None:
+    """leakage_purity_threshold must match its sibling in (0, 1]; NaN/out-of-range skew detection."""
+    with pytest.raises(ValueError, match="leakage_purity_threshold must be in"):
+        Config(leakage_purity_threshold=value)
+
+
+def test_config_accepts_valid_leakage_purity_threshold() -> None:
+    for value in (0.01, 0.5, 0.98, 1.0):
+        Config(leakage_purity_threshold=value)
