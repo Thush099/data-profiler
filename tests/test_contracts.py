@@ -1,5 +1,7 @@
 """Tests for declarative DataContract validation and contract inference."""
 
+import json
+
 import pandas as pd
 import pytest
 
@@ -177,6 +179,46 @@ def test_infer_contract_empty_and_rule_validation_errors():
         ColumnRule(column="x", min_value=10, max_value=5)
     with pytest.raises(ValueError, match="max_null_rate"):
         ColumnRule(column="x", max_null_rate=1.5)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_column_rule_rejects_non_finite_bounds(bad: float) -> None:
+    with pytest.raises(ValueError, match="min_value must be finite"):
+        ColumnRule(column="x", min_value=bad)
+    with pytest.raises(ValueError, match="max_value must be finite"):
+        ColumnRule(column="x", max_value=bad)
+
+
+@pytest.mark.parametrize(
+    "margin", [float("nan"), float("inf"), float("-inf"), -0.1, True, "0.5"]
+)
+def test_infer_contract_rejects_invalid_numeric_margin(margin: object) -> None:
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match="numeric_margin must be a finite non-negative real"):
+        infer_contract(df, numeric_margin=margin)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        [1.0, float("inf"), 3.0],
+        [1.0, 3.0, float("-inf")],
+        [float("inf"), float("-inf"), 1.0],
+    ],
+)
+def test_infer_contract_rejects_non_finite_reference_values(values: list) -> None:
+    """Non-finite reference values must not silently produce NaN bounds."""
+    df = pd.DataFrame({"a": values})
+    with pytest.raises(ValueError, match="column 'a' contains non-finite values"):
+        infer_contract(df)
+
+
+def test_infer_contract_json_contains_no_non_finite_tokens() -> None:
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": ["x", "y", "x"]})
+    payload = infer_contract(df).to_json()
+
+    json.loads(payload, parse_constant=lambda name: pytest.fail(f"non-finite token: {name}"))
+    assert not any(tok in payload for tok in ("NaN", "Infinity"))
 
 
 class TestContractFileLoading:

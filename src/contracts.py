@@ -1,5 +1,7 @@
 """Declarative data contract validation and automatic contract inference."""
 
+import math
+from numbers import Real
 from typing import List, Optional, Set
 
 import pandas as pd
@@ -238,8 +240,15 @@ def infer_contract(
     """Infer a baseline DataContract from clean reference DataFrame statistics."""
     if not isinstance(df, pd.DataFrame):
         raise TypeError(f"Expected pandas.DataFrame, got {type(df).__name__}.")
-    if numeric_margin < 0:
-        raise ValueError("numeric_margin must be non-negative.")
+    if (
+        isinstance(numeric_margin, bool)
+        or not isinstance(numeric_margin, Real)
+        or not math.isfinite(numeric_margin)
+        or numeric_margin < 0
+    ):
+        raise ValueError(
+            f"numeric_margin must be a finite non-negative real, got {numeric_margin!r}"
+        )
 
     profiler = DataProfiler(config=config)
     profile = profiler.profile(df)
@@ -262,6 +271,11 @@ def infer_contract(
                 unique = True
 
         elif col_prof.semantic_type == "numeric" and col_prof.min is not None and col_prof.max is not None:
+            if not (math.isfinite(col_prof.min) and math.isfinite(col_prof.max)):
+                raise ValueError(
+                    f"column {col_name!r} contains non-finite values; "
+                    "clean the reference data before inferring bounds"
+                )
             span = col_prof.max - col_prof.min
             pad = span * numeric_margin
             min_value = float(col_prof.min - pad)

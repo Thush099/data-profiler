@@ -2,6 +2,8 @@
 
 from dataclasses import asdict, dataclass, field
 import json
+import math
+from numbers import Real
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -103,6 +105,15 @@ class ColumnRule:
     max_null_rate: Optional[float] = None
 
     def __post_init__(self) -> None:
+        for name, bound in (("min_value", self.min_value), ("max_value", self.max_value)):
+            if bound is not None and (
+                isinstance(bound, bool)
+                or not isinstance(bound, Real)
+                or not math.isfinite(bound)
+            ):
+                raise ValueError(
+                    f"Invalid rule for '{self.column}': {name} must be finite, got {bound!r}."
+                )
         if (
             self.min_value is not None
             and self.max_value is not None
