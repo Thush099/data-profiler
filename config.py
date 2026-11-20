@@ -1,6 +1,8 @@
 """Configuration settings for the data profiler, validator, and remediation planner."""
 
 from dataclasses import dataclass, field
+import math
+from numbers import Real
 from typing import Dict
 
 
@@ -27,10 +29,15 @@ class Config:
     )
 
     def __post_init__(self) -> None:
-        if self.iqr_multiplier <= 0:
-            raise ValueError("iqr_multiplier must be positive.")
-        if self.zscore_threshold <= 0:
-            raise ValueError("zscore_threshold must be positive.")
+        for name in ("iqr_multiplier", "zscore_threshold"):
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not math.isfinite(value)
+                or value <= 0
+            ):
+                raise ValueError(f"{name} must be a finite positive real, got {value!r}")
         if not 0.0 <= self.max_null_rate_warning <= 1.0:
             raise ValueError("max_null_rate_warning must be between 0 and 1.")
         if not 0.0 < self.imbalance_ratio_threshold <= 1.0:

@@ -152,3 +152,16 @@ def test_config_rejects_invalid_leakage_purity_threshold(value: float) -> None:
 def test_config_accepts_valid_leakage_purity_threshold() -> None:
     for value in (0.01, 0.5, 0.98, 1.0):
         Config(leakage_purity_threshold=value)
+
+
+@pytest.mark.parametrize("field", ["iqr_multiplier", "zscore_threshold"])
+@pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf"), float("-inf"), True, "2"])
+def test_config_rejects_invalid_outlier_thresholds(field: str, value: object) -> None:
+    with pytest.raises(ValueError, match=f"{field} must be a finite positive real"):
+        Config(**{field: value})
+
+
+@pytest.mark.parametrize("field", ["iqr_multiplier", "zscore_threshold"])
+def test_config_accepts_finite_positive_outlier_thresholds(field: str) -> None:
+    Config(**{field: 1.25})
+    Config(**{field: np.float32(2.5)})
