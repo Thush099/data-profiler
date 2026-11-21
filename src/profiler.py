@@ -29,6 +29,9 @@ class DataProfiler:
         """Compute dataset-level and column-level data quality profiles."""
         if not isinstance(df, pd.DataFrame):
             raise TypeError(f"Expected pandas.DataFrame, got {type(df).__name__}.")
+        if not df.columns.is_unique:
+            duplicates = df.columns[df.columns.duplicated()].unique().tolist()
+            raise ValueError(f"DataFrame contains duplicate column labels: {duplicates!r}.")
         if target is not None and target not in df.columns:
             raise ValueError(f"Target column '{target}' not found in DataFrame.")
 

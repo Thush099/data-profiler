@@ -75,10 +75,64 @@ def test_remediation_quarantines_contract_violations():
     assert any(a.action == "quarantine_contract_violations" for a in plan.actions)
 
     result = apply_remediation(df, plan)
-    assert result.rows_quarantined == 2
+    assert result.rows_quarantined == 3
     assert result.rows_after == 2
     assert "env" not in result.cleaned_df.columns
     assert ContractValidator().validate(result.cleaned_df, contract).passed is True
+
+
+def test_remediation_quarantines_only_violating_row_with_duplicate_index_labels():
+    df = pd.DataFrame(
+        {
+            "customer_id": ["C-1", "C-1", "C-2", "C-2"],
+            "age": [25, 25, 35, 45],
+        },
+        index=[7, 7, 7, 7],
+    )
+    contract = DataContract(
+        name="unique_customer_ids",
+        rules=[ColumnRule(column="customer_id", unique=True)],
+    )
+
+    report = ContractValidator().validate(df, contract)
+    result = apply_remediation(
+        df,
+        RemediationPlanner().plan(DataProfiler().profile(df), contract_report=report),
+    )
+
+    assert report.violating_row_positions == [1, 3]
+    assert result.cleaned_df["age"].tolist() == [25, 35]
+    assert result.quarantined_df["age"].tolist() == [25, 45]
+    assert result.rows_quarantined == 2
+
+
+def test_contract_violation_is_quarantined_before_duplicate_removal():
+    df = pd.DataFrame(
+        {
+            "customer_id": ["C-1", "C-1", "C-2"],
+            "age": [25, 25, 35],
+        },
+        index=[10, 10, 12],
+    )
+    contract = DataContract(
+        name="unique_customer_ids",
+        rules=[ColumnRule(column="customer_id", unique=True)],
+    )
+
+    profile = DataProfiler().profile(df)
+    report = ContractValidator().validate(df, contract)
+    assert report.violating_row_positions == [1]
+
+    result = apply_remediation(
+        df,
+        RemediationPlanner().plan(profile, contract_report=report),
+    )
+
+    assert result.rows_quarantined == 1
+    assert len(result.quarantined_df) == 1
+    assert result.quarantined_df["customer_id"].tolist() == ["C-1"]
+    assert result.rows_after == 2
+    assert result.cleaned_df["customer_id"].tolist() == ["C-1", "C-2"]
 
 
 def test_remediation_handles_empty_and_all_null_columns():

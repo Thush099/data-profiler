@@ -129,7 +129,39 @@ def test_empty_dataframe_and_all_null_column_edge_cases():
     )
 
 
+def test_duplicate_column_labels_are_rejected_with_clear_error():
+    df = pd.DataFrame([[1, 2]], columns=["value", "value"])
+
+    with pytest.raises(ValueError, match="duplicate column labels"):
+        DataProfiler().profile(df)
+
+
 def test_invalid_target_raises_value_error():
     df = pd.DataFrame({"a": [1, 2, 3]})
     with pytest.raises(ValueError, match="Target column"):
         DataProfiler().profile(df, target="missing_col")
+
+
+@pytest.mark.parametrize("value", [0.0, -0.1, 1.5, float("nan"), float("inf")])
+def test_config_rejects_invalid_leakage_purity_threshold(value: float) -> None:
+    """leakage_purity_threshold must match its sibling in (0, 1]; NaN/out-of-range skew detection."""
+    with pytest.raises(ValueError, match="leakage_purity_threshold must be in"):
+        Config(leakage_purity_threshold=value)
+
+
+def test_config_accepts_valid_leakage_purity_threshold() -> None:
+    for value in (0.01, 0.5, 0.98, 1.0):
+        Config(leakage_purity_threshold=value)
+
+
+@pytest.mark.parametrize("field", ["iqr_multiplier", "zscore_threshold"])
+@pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf"), float("-inf"), True, "2"])
+def test_config_rejects_invalid_outlier_thresholds(field: str, value: object) -> None:
+    with pytest.raises(ValueError, match=f"{field} must be a finite positive real"):
+        Config(**{field: value})
+
+
+@pytest.mark.parametrize("field", ["iqr_multiplier", "zscore_threshold"])
+def test_config_accepts_finite_positive_outlier_thresholds(field: str) -> None:
+    Config(**{field: 1.25})
+    Config(**{field: np.float32(2.5)})

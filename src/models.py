@@ -2,6 +2,8 @@
 
 from dataclasses import asdict, dataclass, field
 import json
+import math
+from numbers import Real
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -103,6 +105,15 @@ class ColumnRule:
     max_null_rate: Optional[float] = None
 
     def __post_init__(self) -> None:
+        for name, bound in (("min_value", self.min_value), ("max_value", self.max_value)):
+            if bound is not None and (
+                isinstance(bound, bool)
+                or not isinstance(bound, Real)
+                or not math.isfinite(bound)
+            ):
+                raise ValueError(
+                    f"Invalid rule for '{self.column}': {name} must be finite, got {bound!r}."
+                )
         if (
             self.min_value is not None
             and self.max_value is not None
@@ -215,7 +226,15 @@ class DataContract:
     @classmethod
     def from_json_file(cls, file_path: Union[str, Path]) -> "DataContract":
         """Load a DataContract from a JSON file."""
-        return cls.from_json(Path(file_path).read_text(encoding="utf-8"))
+        path = Path(file_path)
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Contract file not found: {path}") from None
+        try:
+            return cls.from_json(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Contract file is not valid JSON: {path} ({exc})") from exc
 
 
 @dataclass
@@ -227,7 +246,7 @@ class ContractViolation:
     failed_count: int
     failure_rate: float
     message: str
-    sample_indices: List[int] = field(default_factory=list)
+    sample_indices: List[Any] = field(default_factory=list)
     details: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -245,7 +264,8 @@ class ContractReport:
     passed_rules: int
     failed_rules: int
     violations: List[ContractViolation] = field(default_factory=list)
-    violating_row_indices: List[int] = field(default_factory=list)
+    violating_row_indices: List[Any] = field(default_factory=list)
+    violating_row_positions: List[int] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize contract validation report to a dictionary."""
@@ -257,6 +277,7 @@ class ContractReport:
             "failed_rules": self.failed_rules,
             "violations": [v.to_dict() for v in self.violations],
             "violating_row_indices": list(self.violating_row_indices),
+            "violating_row_positions": list(self.violating_row_positions),
         }
 
 

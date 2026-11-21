@@ -74,3 +74,59 @@ def test_cli_with_contract_target_and_outputs(tmp_path):
     assert cleaned_df.duplicated().sum() == 0
     assert "source_system" not in cleaned_df.columns
     assert cleaned_df["age"].between(18, 100).all()
+
+
+class _FakeProfile:
+    def __init__(self, severities):
+        self.warnings = [type("W", (), {"severity": s})() for s in severities]
+
+
+class _FakeReport:
+    def __init__(self, passed):
+        self.passed = passed
+
+
+class _FakeResult:
+    def __init__(self, severities=(), contract_passed=True):
+        self.profile = _FakeProfile(severities)
+        self.contract_report = _FakeReport(contract_passed)
+
+
+def test_fail_on_none_always_succeeds():
+    from main import exit_code_for
+
+    assert exit_code_for(_FakeResult(severities=["high"]), "none") == 0
+    assert exit_code_for(_FakeResult(contract_passed=False), "none") == 0
+
+
+def test_fail_on_contract_gates_on_contract_violations():
+    from main import exit_code_for
+
+    assert exit_code_for(_FakeResult(contract_passed=False), "contract") == 1
+    # Warnings alone do not gate at the "contract" level.
+    assert exit_code_for(_FakeResult(severities=["high"]), "contract") == 0
+
+
+def test_fail_on_high_gates_on_high_severity_warnings():
+    from main import exit_code_for
+
+    assert exit_code_for(_FakeResult(severities=["high"]), "high") == 1
+    assert exit_code_for(_FakeResult(severities=["info", "warning"]), "high") == 0
+    assert exit_code_for(_FakeResult(contract_passed=False), "high") == 1
+
+
+def test_fail_on_any_gates_on_any_warning():
+    from main import exit_code_for
+
+    assert exit_code_for(_FakeResult(severities=["info"]), "any") == 1
+    assert exit_code_for(_FakeResult(severities=["warning"]), "any") == 1
+    assert exit_code_for(_FakeResult(severities=[]), "any") == 0
+
+
+def test_fail_on_rejects_unknown_level():
+    import pytest
+
+    from main import exit_code_for
+
+    with pytest.raises(ValueError, match="fail_on must be one of"):
+        exit_code_for(_FakeResult(), "bogus")

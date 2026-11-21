@@ -1,10 +1,73 @@
 """Tests for declarative DataContract validation and contract inference."""
 
+import json
+
 import pandas as pd
 import pytest
 
 from src.contracts import ContractValidator, infer_contract
 from src.models import ColumnRule, DataContract
+
+
+def test_max_null_rate_reports_row_positions_with_duplicate_index_labels():
+    df = pd.DataFrame(
+        {"note": [None, "ok", None]},
+        index=[7, 7, 7],
+    )
+    contract = DataContract(
+        name="note_null_limit",
+        rules=[ColumnRule(column="note", max_null_rate=0.5)],
+    )
+
+    report = ContractValidator().validate(df, contract)
+
+    assert report.violating_row_indices == [7]
+    assert report.violating_row_positions == [0, 2]
+    assert report.violations[0].sample_indices == [7, 7]
+
+
+def test_contract_validation_preserves_non_integer_index_labels():
+    df = pd.DataFrame(
+        {"age": [None, 42]},
+        index=["customer-a", "customer-b"],
+    )
+    contract = DataContract(
+        rules=[ColumnRule(column="age", not_null=True)],
+    )
+
+    report = ContractValidator().validate(df, contract)
+
+    assert report.violating_row_indices == ["customer-a"]
+    assert report.violating_row_positions == [0]
+    assert report.violations[0].sample_indices == ["customer-a"]
+    assert report.to_dict()["violating_row_indices"] == ["customer-a"]
+
+
+@pytest.mark.parametrize(
+    ("values", "rule", "expected_positions"),
+    [
+        ([1, 5, 10], ColumnRule(column="value", min_value=5), [0]),
+        ([1, 5, 10], ColumnRule(column="value", max_value=5), [2]),
+        (["bad", "ok", "bad"], ColumnRule(column="value", allowed_values=["ok"]), [0, 2]),
+    ],
+)
+def test_contract_rules_report_positions_with_duplicate_index_labels(
+    values, rule, expected_positions
+):
+    df = pd.DataFrame({"value": values}, index=[7, 7, 7])
+
+    report = ContractValidator().validate(df, DataContract(rules=[rule]))
+
+    assert report.violating_row_positions == expected_positions
+    assert report.violating_row_indices == [7]
+
+
+def test_contract_validation_rejects_duplicate_column_labels():
+    df = pd.DataFrame([[1, 2]], columns=["age", "age"])
+    contract = DataContract(rules=[ColumnRule(column="age", min_value=0)])
+
+    with pytest.raises(ValueError, match="duplicate column labels"):
+        ContractValidator().validate(df, contract)
 
 
 def test_contract_validation_passes_on_clean_data():
@@ -116,3 +179,59 @@ def test_infer_contract_empty_and_rule_validation_errors():
         ColumnRule(column="x", min_value=10, max_value=5)
     with pytest.raises(ValueError, match="max_null_rate"):
         ColumnRule(column="x", max_null_rate=1.5)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_column_rule_rejects_non_finite_bounds(bad: float) -> None:
+    with pytest.raises(ValueError, match="min_value must be finite"):
+        ColumnRule(column="x", min_value=bad)
+    with pytest.raises(ValueError, match="max_value must be finite"):
+        ColumnRule(column="x", max_value=bad)
+
+
+@pytest.mark.parametrize(
+    "margin", [float("nan"), float("inf"), float("-inf"), -0.1, True, "0.5"]
+)
+def test_infer_contract_rejects_invalid_numeric_margin(margin: object) -> None:
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match="numeric_margin must be a finite non-negative real"):
+        infer_contract(df, numeric_margin=margin)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        [1.0, float("inf"), 3.0],
+        [1.0, 3.0, float("-inf")],
+        [float("inf"), float("-inf"), 1.0],
+    ],
+)
+def test_infer_contract_rejects_non_finite_reference_values(values: list) -> None:
+    """Non-finite reference values must not silently produce NaN bounds."""
+    df = pd.DataFrame({"a": values})
+    with pytest.raises(ValueError, match="column 'a' contains non-finite values"):
+        infer_contract(df)
+
+
+def test_infer_contract_json_contains_no_non_finite_tokens() -> None:
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "b": ["x", "y", "x"]})
+    payload = infer_contract(df).to_json()
+
+    json.loads(payload, parse_constant=lambda name: pytest.fail(f"non-finite token: {name}"))
+    assert not any(tok in payload for tok in ("NaN", "Infinity"))
+
+
+class TestContractFileLoading:
+    def test_missing_contract_file_reports_path(self, tmp_path):
+        from src.models import DataContract
+
+        with pytest.raises(FileNotFoundError, match="Contract file not found"):
+            DataContract.from_json_file(tmp_path / "missing.json")
+
+    def test_malformed_contract_json_reports_path(self, tmp_path):
+        from src.models import DataContract
+
+        bad = tmp_path / "bad.json"
+        bad.write_text("{ not json", encoding="utf-8")
+        with pytest.raises(ValueError, match="Contract file is not valid JSON"):
+            DataContract.from_json_file(bad)

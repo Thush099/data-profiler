@@ -4,8 +4,8 @@ Automated tabular data quality profiler, declarative schema contract validator, 
 
 ## Features
 
-- **`DataProfiler`**: Infers semantic column types (`numeric`, `categorical`, `boolean`, `datetime`, `identifier`), computes null counts/rates, cardinality, summary quantiles (`min`, `q25`, `median`, `q75`, `max`, `iqr`), skewness, IQR and z-score outlier counts, exact duplicate rows, constant/all-null columns, and optional `--target` diagnostics (class imbalance and Pearson/conditional-purity target leakage warnings).
-- **`DataContract` & `ContractValidator`**: Validates datasets against declarative column rules (`not_null`, `min_value`, `max_value`, `allowed_values`, `unique`, `max_null_rate`), supports JSON serialization, and automatically infers baseline contracts from clean reference DataFrames via `infer_contract(df)`.
+- **`DataProfiler`**: Infers semantic column types (`numeric`, `categorical`, `boolean`, `datetime`, `identifier`), computes null counts/rates, cardinality, summary quantiles (`min`, `q25`, `median`, `q75`, `max`, `iqr`), skewness, IQR and z-score outlier counts, exact duplicate rows, constant/all-null columns, and optional `--target` diagnostics (class imbalance and Pearson/conditional-purity target leakage warnings). Profiling thresholds are validated to their legal ranges at construction (for example, `leakage_purity_threshold` must be in `(0, 1]`, and `iqr_multiplier`/`zscore_threshold` must be finite positive real numbers), so an out-of-range value is rejected instead of silently skewing leakage or outlier detection.
+- **`DataContract` & `ContractValidator`**: Validates datasets against declarative column rules (`not_null`, `min_value`, `max_value`, `allowed_values`, `unique`, `max_null_rate`), supports JSON serialization, and automatically infers baseline contracts from clean reference DataFrames via `infer_contract(df)` (non-finite reference values are rejected instead of producing `NaN` bounds, and rule bounds must be finite). Contract reports include both index labels and row positions for violations, so remediation remains unambiguous when a DataFrame has duplicate index labels.
 - **`RemediationPlanner` & `apply_remediation()`**: Generates prioritized, executable remediation plans (`drop_duplicates`, `quarantine_contract_violations`, `drop_constant_columns`, `impute_median`, `impute_mode`, `winsorize_iqr`) and optionally outputs a remediated CSV.
 - **Bundled Sample Dataset**: Includes `data/sample_dirty.csv` with missing values, exact duplicates, negative/extreme numeric anomalies, category typos, and a constant column.
 
@@ -58,6 +58,25 @@ python main.py \
   --output-report outputs/report.json \
   --clean-output outputs/cleaned.csv
 ```
+
+### Gating a pipeline with `--fail-on`
+
+By default the CLI always exits `0`, so a monitoring job cannot tell a clean run from a
+dirty one. `--fail-on` turns findings into a non-zero exit code so the tool can gate a
+CI or scheduled pipeline:
+
+| Value | Exits `1` when |
+|---|---|
+| `none` (default) | Never — preserves the historical behavior. |
+| `contract` | A loaded contract's validation fails. |
+| `high` | The contract fails, or profiling raises a `high`-severity warning. |
+| `any` | The contract fails, or any profiling warning is raised. |
+
+```bash
+python main.py --input-data data/sample_dirty.csv --fail-on high
+```
+
+An unknown level is rejected by argparse rather than silently disabling the gate.
 
 ### Example CLI Output (`python main.py`)
 
@@ -114,6 +133,8 @@ report = ContractValidator().validate(df, contract)
 plan = RemediationPlanner().plan(profile, contract_report=report)
 result = apply_remediation(df, plan)
 ```
+
+Contract-violating rows are quarantined before duplicate removal so every violating source row remains available for audit, including rows that are also exact duplicates.
 
 ## Running Tests
 
