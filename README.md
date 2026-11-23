@@ -141,3 +141,16 @@ Contract-violating rows are quarantined before duplicate removal so every violat
 ```bash
 pytest -v
 ```
+
+## Web UI
+
+A local spec-sheet workbench drives the real pipeline in the browser:
+
+```bash
+python ui/server.py            # http://127.0.0.1:8124
+```
+
+Paste a CSV (or load the sample dataset), optionally add a data contract and target
+column, and read severity-graded column profiles, contract violations, quality warnings,
+and an ordered remediation plan. The server uses only the standard library and calls
+`DataQualityPipeline.run()`.

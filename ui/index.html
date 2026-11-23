@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Quality Spec Sheet — profiler, contract, remediation</title>
+<style>
+  :root {
+    --bg: #eceae4;
+    --sheet: #fbfaf7;
+    --ink: #22242a;
+    --ink-soft: #6a6d76;
+    --rule: #c9c6bd;
+    --line: #e2dfd8;
+    --sev-high: #a5322c;
+    --sev-warn: #b06f1c;
+    --sev-ok: #2c6b4c;
+    --sev-info: #2b5c86;
+    --mono: "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+  header {
+    padding: 30px 26px 20px; background: var(--ink); color: #f2f1ec;
+  }
+  header h1 { margin: 0; font: 600 clamp(22px, 3.4vw, 32px)/1.15 var(--sans); letter-spacing: -.01em; }
+  header h1 em { font-style: normal; color: #e9b64a; }
+  header p { margin: 8px 0 0; max-width: 68ch; color: #b9bbc2; font-size: 14.5px; }
+  .layout { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 20px; padding: 20px 26px 56px; }
+  @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px; padding: 18px 20px; }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { margin: 0 0 3px; font: 600 17px/1.25 var(--sans); }
+  .meta { margin: 0 0 12px; color: var(--ink-soft); font-size: 12.5px; }
+  label { display: block; font: 600 11.5px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); margin: 13px 0 6px; }
+  textarea, input[type="text"] {
+    width: 100%; border: 1px solid var(--rule); border-radius: 3px; background: #fff;
+    color: var(--ink); font: 13px/1.5 var(--mono); padding: 9px 11px;
+  }
+  textarea { resize: vertical; min-height: 150px; }
+  textarea:focus-visible, input:focus-visible, button:focus-visible, select:focus-visible {
+    outline: 2px solid var(--sev-info); outline-offset: 1px;
+  }
+  .switch { display: flex; align-items: center; gap: 9px; margin-top: 14px; font-size: 13.5px; }
+  .switch input { width: 17px; height: 17px; accent-color: var(--sev-info); }
+  .btnrow { display: flex; gap: 10px; margin-top: 16px; }
+  button {
+    flex: 1; border: 0; border-radius: 3px; cursor: pointer; padding: 12px 14px;
+    font: 600 14.5px/1 var(--sans);
+  }
+  button.primary { background: var(--sev-info); color: #fff; }
+  button.primary:hover { background: #234a6e; }
+  button.ghost { background: transparent; color: var(--sev-info); border: 1px solid var(--sev-info); }
+  button:disabled { opacity: .55; cursor: wait; }
+  .error { margin-top: 13px; padding: 10px 12px; border-left: 3px solid var(--sev-high); background: #f4ded9; color: var(--sev-high); font-size: 13px; white-space: pre-wrap; }
+
+  .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .stat { background: var(--sheet); padding: 13px 15px; }
+  .stat .k { font: 600 11px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
+  .stat .v { font: 600 24px/1.15 var(--mono); margin-top: 5px; font-variant-numeric: tabular-nums; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font: 600 11px/1 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); background: #f1efe9; position: sticky; top: 0; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font: 600 11px/1.7 var(--sans); }
+  .pill.high { background: #f4ded9; color: var(--sev-high); }
+  .pill.warn { background: #f5e8cf; color: var(--sev-warn); }
+  .pill.ok { background: #dcebe1; color: var(--sev-ok); }
+  .pill.info { background: #dbe6f0; color: var(--sev-info); }
+  .wrap { overflow-x: auto; }
+  .flag { color: var(--sev-high); font-weight: 600; }
+  .ok-text { color: var(--sev-ok); font-weight: 600; }
+  .empty { padding: 22px; text-align: center; color: var(--ink-soft); font-size: 13.5px; }
+  details { margin-top: 8px; }
+  summary { cursor: pointer; font-size: 12.5px; color: var(--sev-info); font-weight: 600; }
+  pre { background: #2a2c31; color: #e6e4dd; padding: 12px; border-radius: 3px; overflow: auto; font: 11.5px/1.5 var(--mono); max-height: 300px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Data quality <em>spec sheet</em></h1>
+  <p>Paste a CSV to profile it with the real pipeline: column semantics, missingness, outliers,
+  duplicates, optional data-contract validation, and an ordered remediation plan. Severity is
+  graded per column so problems stand out.</p>
+</header>
+
+<div class="layout">
+  <form class="panel" id="form">
+    <h2>Input</h2>
+    <p class="meta">Runs <code>DataQualityPipeline.run()</code> from <code>src/pipeline.py</code>.</p>
+
+    <label for="csv">CSV data</label>
+    <textarea id="csv" placeholder="id,name,score&#10;1,alice,0.9"></textarea>
+    <div class="btnrow">
+      <button type="button" class="ghost" id="load-sample">Load sample data</button>
+    </div>
+
+    <label for="target">Target column (optional)</label>
+    <input type="text" id="target" placeholder="e.g. label">
+
+    <label for="contract">Data contract JSON (optional)</label>
+    <textarea id="contract" style="min-height:90px" placeholder='{"name": "demo", "rules": [...]}'></textarea>
+
+    <label class="switch">
+      <input type="checkbox" id="remediate">
+      <span>Apply remediation and show cleaned result</span>
+    </label>
+
+    <div class="btnrow">
+      <button type="submit" class="primary" id="run">Profile dataset</button>
+    </div>
+    <div class="error" id="error" hidden></div>
+  </form>
+
+  <section>
+    <div class="panel" id="summary-panel" hidden>
+      <h2>Dataset summary</h2>
+      <p class="meta" id="summary-meta"></p>
+      <div class="statgrid" id="statgrid"></div>
+    </div>
+
+    <div class="panel" id="contract-panel" hidden>
+      <h2>Contract validation</h2>
+      <p class="meta" id="contract-meta"></p>
+      <div class="wrap" id="contract-body"></div>
+    </div>
+
+    <div class="panel" id="columns-panel" hidden>
+      <h2>Column profiles</h2>
+      <p class="meta">Sorted by severity. Outlier and null rates are highlighted.</p>
+      <div class="wrap"><table id="columns-table"></table></div>
+    </div>
+
+    <div class="panel" id="remediation-panel" hidden>
+      <h2>Remediation plan</h2>
+      <p class="meta" id="remediation-meta"></p>
+      <div class="wrap"><table id="remediation-table"></table></div>
+    </div>
+
+    <div class="panel" id="warnings-panel" hidden>
+      <h2>Quality warnings</h2>
+      <div class="wrap"><table id="warnings-table"></table></div>
+    </div>
+
+    <details id="raw-details" hidden>
+      <summary>Show raw JSON report</summary>
+      <pre id="raw"></pre>
+    </details>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const pct = (x) => x == null ? "—" : `${(100 * x).toFixed(1)}%`;
+  const num = (x, d = 3) => x == null ? "—" : Number(x).toFixed(d);
+
+  function severity(col) {
+    if (col.is_all_null) return ["high", "all null"];
+    if (col.null_rate >= 0.4) return ["high", "sparse"];
+    if (col.iqr_outlier_count > 0 && col.iqr_outlier_count / Math.max(col.count, 1) >= 0.1) return ["warn", "outliers"];
+    if (col.null_rate > 0) return ["warn", "missing"];
+    return ["ok", "clean"];
+  }
+
+  function renderSummary(p) {
+    const stats = [
+      ["Rows", p.row_count.toLocaleString()],
+      ["Columns", p.column_count],
+      ["Duplicate rows", `${p.duplicate_row_count} (${pct(p.duplicate_row_rate)})`],
+      ["Missing cells", `${p.total_missing_cells} (${pct(p.missing_cell_rate)})`],
+      ["Constant cols", p.constant_columns.length],
+      ["All-null cols", p.all_null_columns.length],
+    ];
+    $("statgrid").innerHTML = stats.map(([k, v]) =>
+      `<div class="stat"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("");
+    $("summary-meta").textContent = p.target_column ? `target column: ${p.target_column}` : "no target column set";
+    $("summary-panel").hidden = false;
+  }
+
+  function renderColumns(p) {
+    const cols = Object.values(p.columns || {});
+    cols.sort((a, b) => {
+      const order = { high: 0, warn: 1, ok: 2 };
+      return order[severity(a)[0]] - order[severity(b)[0]] || a.name.localeCompare(b.name);
+    });
+    $("columns-table").innerHTML =
+      `<thead><tr><th>Column</th><th>Type</th><th>Missing</th><th>Outliers (IQR)</th><th>Distinct</th><th>Range / Top</th><th>State</th></tr></thead><tbody>` +
+      cols.map((c) => {
+        const [cls, label] = severity(c);
+        const range = c.mean != null
+          ? `${num(c.min)} … ${num(c.max)} (μ ${num(c.mean)})`
+          : (c.top_values && c.top_values.length ? esc(JSON.stringify(c.top_values[0]).slice(0, 40)) : "—");
+        return `<tr>
+          <td><b>${esc(c.name)}</b><br><span style="color:var(--ink-soft);font-size:11px">${esc(c.semantic_type)}</span></td>
+          <td class="num">${esc(c.dtype)}</td>
+          <td class="num">${c.null_count} · ${pct(c.null_rate)}</td>
+          <td class="num ${c.iqr_outlier_count ? "flag" : ""}">${c.iqr_outlier_count}</td>
+          <td class="num">${c.cardinality}</td>
+          <td class="num">${range}</td>
+          <td><span class="pill ${cls}">${label}</span></td>
+        </tr>`;
+      }).join("") + `</tbody>`;
+    $("columns-panel").hidden = false;
+  }
+
+  function renderContract(cr) {
+    if (!cr) { $("contract-panel").hidden = true; return; }
+    $("contract-meta").textContent =
+      `${cr.contract_name} · ${cr.passed_rules}/${cr.total_rules_checked} rules passed · ${cr.violations.length} violation type(s)`;
+    const ok = cr.passed;
+    if (!cr.violations.length) {
+      $("contract-body").innerHTML = `<p class="ok-text">All contract rules passed.</p>`;
+    } else {
+      $("contract-body").innerHTML = `<table>
+        <thead><tr><th>Column</th><th>Rule</th><th>Failed</th><th>Failure rate</th></tr></thead><tbody>` +
+        cr.violations.map((v) => `<tr>
+          <td><b>${esc(v.column)}</b></td><td class="num">${esc(v.rule)}</td>
+          <td class="num flag">${v.failed_count}</td><td class="num flag">${pct(v.failure_rate)}</td>
+        </tr>`).join("") + `</tbody></table>`;
+    }
+    $("contract-panel").hidden = false;
+    $("contract-panel").style.borderColor = ok ? "var(--sev-ok)" : "var(--sev-high)";
+  }
+
+  function renderRemediation(plan, execution) {
+    const actions = plan.actions || [];
+    $("remediation-meta").textContent =
+      `${plan.total_actions} action(s) planned` + (execution ? " · applied" : " · preview only");
+    if (!actions.length) {
+      $("remediation-table").innerHTML = `<tbody><tr><td class="empty">No remediation needed — dataset is clean.</td></tr></tbody>`;
+    } else {
+      $("remediation-table").innerHTML =
+        `<thead><tr><th>Action</th><th>Column</th><th>Reason</th></tr></thead><tbody>` +
+        actions.map((a) => `<tr>
+          <td><span class="pill info">${esc(a.action ?? a.type ?? "fix")}</span></td>
+          <td><b>${esc(a.column ?? "—")}</b></td>
+          <td>${esc(a.reason ?? a.description ?? JSON.stringify(a).slice(0, 80))}</td>
+        </tr>`).join("") + `</tbody>`;
+    }
+    $("remediation-panel").hidden = false;
+  }
+
+  function renderWarnings(p) {
+    const warnings = p.warnings || [];
+    if (!warnings.length) { $("warnings-panel").hidden = true; return; }
+    $("warnings-table").innerHTML =
+      `<thead><tr><th>Severity</th><th>Category</th><th>Column</th><th>Message</th></tr></thead><tbody>` +
+      warnings.map((w) => `<tr>
+        <td><span class="pill ${String(w.severity).toLowerCase().includes("high") || String(w.severity).toLowerCase().includes("error") ? "high" : "warn"}">${esc(w.severity)}</span></td>
+        <td>${esc(w.category)}</td><td><b>${esc(w.column ?? "—")}</b></td><td>${esc(w.message)}</td>
+      </tr>`).join("") + `</tbody>`;
+    $("warnings-panel").hidden = false;
+  }
+
+  $("load-sample").addEventListener("click", async () => {
+    const res = await fetch("/api/sample");
+    const payload = await res.json();
+    $("csv").value = payload.csv_text;
+    $("error").hidden = true;
+  });
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("run");
+    btn.disabled = true; btn.textContent = "Profiling…";
+    $("error").hidden = true;
+    try {
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          csv_text: $("csv").value,
+          contract_json: $("contract").value.trim() || null,
+          target: $("target").value.trim() || null,
+          execute_remediation: $("remediate").checked,
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || `Request failed (${res.status})`);
+      renderSummary(payload.profile);
+      renderContract(payload.contract_validation);
+      renderColumns(payload.profile);
+      renderRemediation(payload.remediation_plan, payload.remediation_execution);
+      renderWarnings(payload.profile);
+      $("raw").textContent = JSON.stringify(payload, null, 2);
+      $("raw-details").hidden = false;
+    } catch (err) {
+      $("error").textContent = err.message;
+      $("error").hidden = false;
+    } finally {
+      btn.disabled = false; btn.textContent = "Profile dataset";
+    }
+  });
+})();
+</script>
+</body>
+</html>

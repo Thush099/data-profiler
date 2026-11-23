@@ -134,6 +134,18 @@ class ColumnRule:
     @classmethod
     def from_dict(cls, data: Dict[str, Any], column_name: Optional[str] = None) -> "ColumnRule":
         """Create a ColumnRule from a mapping."""
+        if not isinstance(data, dict):
+            raise TypeError(f"ColumnRule must be a mapping, got {type(data).__name__}.")
+        known = {
+            "column", "not_null", "min_value", "max_value",
+            "allowed_values", "unique", "max_null_rate",
+        }
+        unknown = sorted(set(data) - known)
+        if unknown:
+            raise ValueError(
+                f"Unknown ColumnRule field(s) for '{data.get('column', column_name)}': "
+                f"{unknown}. Known fields: {sorted(known)}."
+            )
         col = data.get("column") or column_name
         if not col:
             raise ValueError("ColumnRule requires a 'column' name.")
@@ -200,6 +212,14 @@ class DataContract:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DataContract":
         """Construct a DataContract from a dictionary representation."""
+        if not isinstance(data, dict):
+            raise TypeError(f"DataContract must be a mapping, got {type(data).__name__}.")
+        known = {"name", "rules", "strict_columns"}
+        unknown = sorted(set(data) - known)
+        if unknown:
+            raise ValueError(
+                f"Unknown DataContract field(s): {unknown}. Known fields: {sorted(known)}."
+            )
         raw_rules = data.get("rules", {})
         parsed_rules: Dict[str, ColumnRule] = {}
         if isinstance(raw_rules, list):
