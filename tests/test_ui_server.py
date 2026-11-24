@@ -95,3 +95,11 @@ def test_run_profile_with_contract_dict():
     result = run_profile(SAMPLE_CSV, target="score")
     assert result["profile"]["target_column"] == "score"
     assert "remediation_plan" in result
+
+def test_index_has_accessibility_features(server):
+    """The served page ships skip-link navigation, a main landmark, and reduced-motion guard."""
+    html = urllib.request.urlopen(server + "/").read().decode("utf-8")
+    assert 'class="skip-link"' in html, "missing skip link for keyboard users"
+    assert '<main class="layout">' in html, "missing main landmark"
+    assert 'role="alert"' in html, "error box must announce to assistive tech"
+    assert "prefers-reduced-motion" in html, "missing reduced-motion guard"
