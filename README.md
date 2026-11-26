@@ -1,5 +1,7 @@
 # Data Profiler
 
+[![CI](https://github.com/Thush099/data-profiler/actions/workflows/tests.yml/badge.svg)](https://github.com/Thush099/data-profiler/actions/workflows/tests.yml)
+
 Automated tabular data quality profiler, declarative schema contract validator, and prioritized remediation planner for CSV and pandas DataFrames.
 
 ## Features
