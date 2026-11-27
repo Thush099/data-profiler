@@ -139,3 +139,12 @@ def test_index_disables_heuristic_caching(server):
     observed live because custom do_GET handlers send no cache validators."""
     resp = urllib.request.urlopen(server + "/")
     assert resp.headers.get("Cache-Control") == "no-cache"
+
+
+def test_index_reports_profiling_progress(server):
+    """Large pastes profile for a while — the UI must show row count and elapsed
+    time while the request runs, and the final row count afterwards."""
+    html = urllib.request.urlopen(server + "/").read().decode("utf-8")
+    assert 'id="status"' in html, "missing the profiling status line"
+    assert "elapsed" in html, "missing the elapsed-time ticker"
+    assert "rows in" in html, "missing the completion summary"

@@ -154,6 +154,7 @@
     <div class="btnrow">
       <button type="submit" class="primary" id="run">Profile dataset</button>
       <span class="spinner" hidden aria-hidden="true"></span>
+      <span class="meta" id="status" aria-live="polite"></span>
     </div>
     <div class="error" id="error" role="alert" hidden></div>
   </form>
@@ -317,9 +318,17 @@
     }
   });
 
+  let elapsedTimer = null;
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = $("run");
+    const started = Date.now();
+    const rows = Math.max(0, $("csv").value.split(/\r?\n/).filter((l) => l.trim()).length - 1);
+    const tick = () => {
+      $("status").textContent = `Profiling ${rows} rows… ${((Date.now() - started) / 1000).toFixed(1)}s elapsed`;
+    };
+    tick();
+    elapsedTimer = setInterval(tick, 250);
     btn.disabled = true; btn.textContent = "Profiling…";
     btn.form.setAttribute("aria-busy", "true");
     const spinner = document.querySelector(".spinner");
@@ -345,10 +354,13 @@
       renderWarnings(payload.profile);
       $("raw").textContent = JSON.stringify(payload, null, 2);
       $("raw-details").hidden = false;
+      $("status").textContent = `Profiled ${payload.profile.row_count} rows in ${((Date.now() - started) / 1000).toFixed(1)}s`;
     } catch (err) {
       $("error").textContent = err.message;
       $("error").hidden = false;
+      $("status").textContent = "";
     } finally {
+      clearInterval(elapsedTimer);
       btn.disabled = false; btn.textContent = "Profile dataset";
       btn.form.setAttribute("aria-busy", "false");
       spinner.hidden = true;
