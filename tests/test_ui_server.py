@@ -132,3 +132,10 @@ def test_secondary_async_actions_report_failures(server):
     """Sample-loader actions must surface failures, not fail silently."""
     html = urllib.request.urlopen(server + "/").read().decode("utf-8")
     assert "Could not load sample data" in html, "sample loader must report failures to the user"
+
+
+def test_index_disables_heuristic_caching(server):
+    """The UI shell must not be heuristically cached — stale HTML after edits was
+    observed live because custom do_GET handlers send no cache validators."""
+    resp = urllib.request.urlopen(server + "/")
+    assert resp.headers.get("Cache-Control") == "no-cache"
