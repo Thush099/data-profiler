@@ -126,3 +126,9 @@ def test_oversized_declared_body_is_rejected_not_hung(server):
         )
         first = sock.recv(4096).split(b"\r\n", 1)[0]
     assert b"413" in first, f"expected 413 for oversized body, got {first!r}"
+
+
+def test_secondary_async_actions_report_failures(server):
+    """Sample-loader actions must surface failures, not fail silently."""
+    html = urllib.request.urlopen(server + "/").read().decode("utf-8")
+    assert "Could not load sample data" in html, "sample loader must report failures to the user"

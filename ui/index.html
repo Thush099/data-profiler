@@ -301,10 +301,20 @@
   }
 
   $("load-sample").addEventListener("click", async () => {
-    const res = await fetch("/api/sample");
-    const payload = await res.json();
-    $("csv").value = payload.csv_text;
-    $("error").hidden = true;
+    const btn = $("load-sample");
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/sample");
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || `Request failed (${res.status})`);
+      $("csv").value = payload.csv_text;
+      $("error").hidden = true;
+    } catch (err) {
+      $("error").textContent = `Could not load sample data: ${err.message}`;
+      $("error").hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   $("form").addEventListener("submit", async (e) => {
