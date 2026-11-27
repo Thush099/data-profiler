@@ -235,3 +235,15 @@ class TestContractFileLoading:
         bad.write_text("{ not json", encoding="utf-8")
         with pytest.raises(ValueError, match="Contract file is not valid JSON"):
             DataContract.from_json_file(bad)
+
+
+def test_infer_contract_rejects_non_finite_before_pandas_number_crunching() -> None:
+    """Non-finite reference values must be rejected at the boundary — pandas must
+    never see them (its subtract on inf emitted RuntimeWarnings during profiling)."""
+    import warnings
+
+    df = pd.DataFrame({"a": [1.0, 2.0, float("inf")]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with pytest.raises(ValueError, match="column 'a' contains non-finite values"):
+            infer_contract(df)
