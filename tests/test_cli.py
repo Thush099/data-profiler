@@ -130,3 +130,23 @@ def test_fail_on_rejects_unknown_level():
 
     with pytest.raises(ValueError, match="fail_on must be one of"):
         exit_code_for(_FakeResult(), "bogus")
+
+
+def test_cli_missing_input_reports_clean_error(tmp_path, capsys):
+    import pytest
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--input-data", str(tmp_path / "does_not_exist.csv")])
+    assert excinfo.value.code == 2
+    assert "input data file not found" in capsys.readouterr().err
+
+
+def test_cli_missing_contract_reports_clean_error(tmp_path, capsys):
+    import pytest
+
+    sample = tmp_path / "data.csv"
+    sample.write_text("a,b\n1,2\n")
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--input-data", str(sample), "--contract", str(tmp_path / "nope.json")])
+    assert excinfo.value.code == 2
+    assert "contract file not found" in capsys.readouterr().err

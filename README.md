@@ -65,6 +65,9 @@ By default the CLI always exits `0`, so a monitoring job cannot tell a clean run
 dirty one. `--fail-on` turns findings into a non-zero exit code so the tool can gate a
 CI or scheduled pipeline:
 
+Usage errors — a missing input or contract file, or an out-of-range gate value — exit with
+code `2` and a clean message instead of a traceback.
+
 | Value | Exits `1` when |
 |---|---|
 | `none` (default) | Never — preserves the historical behavior. |

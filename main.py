@@ -97,11 +97,19 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     config = Config()
     input_path = _resolve_input_path(args.input_data)
+    if not input_path.is_file():
+        parser.error(f"input data file not found: {input_path}")
     df = load_data(input_path)
 
     contract: Optional[DataContract] = None
     if args.contract:
-        contract = DataContract.from_json_file(_resolve_input_path(args.contract))
+        contract_path = _resolve_input_path(args.contract)
+        if not contract_path.is_file():
+            parser.error(f"contract file not found: {contract_path}")
+        try:
+            contract = DataContract.from_json_file(contract_path)
+        except ValueError as exc:
+            parser.error(str(exc))
 
     pipeline = DataQualityPipeline(config=config)
     result = pipeline.run(
