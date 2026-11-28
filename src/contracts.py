@@ -250,6 +250,18 @@ def infer_contract(
             f"numeric_margin must be a finite non-negative real, got {numeric_margin!r}"
         )
 
+    # Reject non-finite reference values before any pandas number crunching —
+    # profiling a column containing inf raises RuntimeWarnings inside nanops.
+    for col_name in df.columns:
+        values = df[col_name].dropna()
+        if pd.api.types.is_numeric_dtype(values) and not all(
+            math.isfinite(float(v)) for v in values
+        ):
+            raise ValueError(
+                f"column {col_name!r} contains non-finite values; "
+                "clean the reference data before inferring bounds"
+            )
+
     profiler = DataProfiler(config=config)
     profile = profiler.profile(df)
     rules: dict[str, ColumnRule] = {}

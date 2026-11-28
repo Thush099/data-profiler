@@ -235,3 +235,31 @@ class TestContractFileLoading:
         bad.write_text("{ not json", encoding="utf-8")
         with pytest.raises(ValueError, match="Contract file is not valid JSON"):
             DataContract.from_json_file(bad)
+
+
+def test_infer_contract_rejects_non_finite_before_pandas_number_crunching() -> None:
+    """Non-finite reference values must be rejected at the boundary — pandas must
+    never see them (its subtract on inf emitted RuntimeWarnings during profiling)."""
+    import warnings
+
+    df = pd.DataFrame({"a": [1.0, 2.0, float("inf")]})
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with pytest.raises(ValueError, match="column 'a' contains non-finite values"):
+            infer_contract(df)
+
+
+def test_datacontract_rule_normalization_accepts_dicts_rejects_garbage() -> None:
+    """Rules may arrive as a keyed mapping or a list, with dict entries parsed via
+    ColumnRule.from_dict; anything else raises TypeError naming the entry."""
+    keyed = DataContract(name="c", rules={"a": {"not_null": True}})
+    assert isinstance(keyed.rules["a"], ColumnRule)
+    assert keyed.rules["a"].column == "a" and keyed.rules["a"].not_null is True
+
+    listed = DataContract(name="c2", rules=[{"column": "b", "unique": True}])
+    assert listed.rules["b"].unique is True
+
+    with pytest.raises(TypeError, match="Unsupported rule entry"):
+        DataContract(name="c3", rules=["garbage"])
+    with pytest.raises(TypeError, match="Unsupported rule type"):
+        DataContract(name="c4", rules={"a": "garbage"})
