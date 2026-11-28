@@ -153,3 +153,27 @@ def test_remediation_handles_empty_and_all_null_columns():
     null_result = apply_remediation(df_all_null, null_plan)
     assert "dead_col" not in null_result.cleaned_df.columns
     assert list(null_result.cleaned_df.columns) == ["val"]
+
+
+def test_quarantine_by_explicit_row_indices() -> None:
+    """The row_indices quarantine path removes only valid listed rows and reports
+    nothing applied when no index is valid."""
+    from src.models import RemediationAction, RemediationPlan
+
+    df = pd.DataFrame({"a": [1, 2, 3, 4]})
+    plan = RemediationPlan(actions=[RemediationAction(
+        priority=1, action="quarantine_contract_violations", target="a",
+        reason="contract violation", params={"row_indices": [1, 99]},
+    )])
+    result = apply_remediation(df, plan)
+    assert list(result.cleaned_df["a"]) == [1, 3, 4], "valid violating rows are removed"
+    assert list(result.quarantined_df["a"]) == [2], "the valid listed row is quarantined"
+    assert any("quarantine_contract_violations" in a for a in result.applied_actions)
+
+    empty_plan = RemediationPlan(actions=[RemediationAction(
+        priority=1, action="quarantine_contract_violations", target="a",
+        reason="contract violation", params={"row_indices": [99]},
+    )])
+    untouched = apply_remediation(df, empty_plan)
+    assert list(untouched.cleaned_df["a"]) == [1, 2, 3, 4], "invalid indices quarantine nothing"
+    assert not any("quarantine_contract_violations" in a for a in untouched.applied_actions)
